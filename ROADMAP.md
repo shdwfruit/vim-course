@@ -21,11 +21,19 @@ cd vim-course
 python3 play.py               # the whole course from one screen: pick a project, then an exercise or drill
 ```
 
-It opens a map of the projects with your marks. `j`/`k` (or the arrows) move, `Enter` opens a project
-and then plays the exercise or drill you pick, `r` reads the project's lesson (this folder's README) in
-Neovim, `p` starts mixed practice, `t` shows your stats, and `h` or `q` goes back a screen. In a game,
-the menu's `q` brings you back to the list instead of quitting. Your progress and stats are the same ones
-the commands below keep: use whichever you like.
+It fills the terminal with a map: the projects are islands in a line, and you're the yellow `@`. Sail
+from one to the next with `h`/`l` (or ← →; `g`/`G` for the first and last) and the map scrolls with you;
+`Enter` goes ashore. Inside, you pick a level: its cards run along the top with the one you're on in
+the middle (`h`/`l` to choose), the island below shows the dotted route through them, and the panel on
+the right has the details and the PLAY button (`Enter`). The drills are along the bottom: `j` goes down
+to them and `k` comes back. Marks: gold ★ at par, green ✓ solved, red ✗ tried, grey not yet. The long exercises, the ones with a
+list of 8 to 17 edits (each project's two reviews, and all of Project 10), are boss levels: a solve
+also gets a grade for how close it came to par, A up to 10% over, B 25%, C 50%, D double par, and F
+beyond. `check.py` shows the grades too, after each try and in its lists. `Enter`
+plays the one you're on, `r` reads the project's lesson (its README) in Neovim, `p` starts mixed
+practice, `t` shows your stats, and `q` goes back. In a game, the menu's `q` brings you back to the
+map instead of quitting. On a small terminal the map becomes a plain list. Your progress and stats are
+the same ones the commands below keep: use whichever you like.
 
 ```bash
 cd vim-course

@@ -1,25 +1,29 @@
 """The whole course from one place:  python3 play.py
 
-A map of the course's projects. Open one to see its exercises and drills with your marks, pick one and play:
-the same menu as check.py runs it, and q there brings you back. Progress and stats are the ones check.py keeps.
+The course as a map of islands, one per project. Walk to one and go in: its trail runs through its exercises,
+and its training camp holds the drills. Pick one and play: the same menu as check.py runs it, and q there
+brings you back. Progress and stats are the ones check.py keeps. On a small terminal the map becomes a list.
 
-    j k (or ↑ ↓) move    Enter (or l) open / play    h (or q, ←) back    g G first / last
-    r read the project's lesson    p practice    t your stats    q on the map quits
+    h l (or ← →) walk    j k (or ↑ ↓) up and down    g G first / last    Enter go in / play
+    r read the project's lesson    p practice    t your stats    q back (on the course map: quit)
 """
 import shutil
 import subprocess
 import sys
-import termios
 import textwrap
-import tty
 from pathlib import Path
 
 COURSE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(COURSE_DIR / "common"))
+import mapview  # noqa: E402
 import trainer  # noqa: E402
+from mapview import read_key, size  # noqa: E402
 from trainer import bold, cyan, dim, yellow  # noqa: E402
 
-OPEN, BACK = ("enter", "l", "right"), ("h", "left", "q", "esc")
+# What a key does, on the full-screen maps (where h and l walk) and on the lists (where they open and go back)
+MAP_KEYS = {"enter": "open", "q": "back", "esc": "back", "backspace": "back", "p": "practice", "r": "lesson",
+            "t": "stats"}
+LIST_KEYS = dict(MAP_KEYS, l="open", right="open", h="back", left="back")
 
 
 def out(s):
@@ -36,16 +40,6 @@ def screen_off():
     out("\033[?7h\033[?25h\033[?1049l")
 
 
-def read_key():
-    fd = sys.stdin.fileno()
-    old = termios.tcgetattr(fd)
-    tty.setcbreak(fd, termios.TCSANOW)
-    try:
-        return trainer._read_key(fd)
-    finally:
-        termios.tcsetattr(fd, termios.TCSANOW, old)
-
-
 def choose(header, rows, at, footer):
     """Draw header, rows with a cursor on row `at`, and footer(value of that row); j k / ↑ ↓ move, g G jump.
     rows are (text, value) pairs, value None for a heading. Returns (key, value, at) for any other key."""
@@ -59,7 +53,12 @@ def choose(header, rows, at, footer):
         if len(rows) > room:
             foot = [dim(f"    ({top + 1}-{min(len(rows), top + room)} of {len(rows)} lines)")] + foot[1:]
         out("\033[H\033[2J" + "\n".join(header + body[top:top + room] + foot))
-        key, i = read_key(), picks.index(at)
+        shown = size()
+        key, i = read_key(0.5), picks.index(at)
+        if key is None:
+            if size() != shown:
+                return "resize", rows[at][1], at  # maybe big enough for the map now
+            continue
         if key in ("up", "k", "down", "j", "g", "G"):
             at = {"up": picks[max(0, i - 1)], "k": picks[max(0, i - 1)], "g": picks[0], "G": picks[-1],
                   "down": picks[min(len(picks) - 1, i + 1)], "j": picks[min(len(picks) - 1, i + 1)]}[key]
@@ -106,7 +105,7 @@ def map_screen(worlds, at):
         done, total, drills_done, drills_total = done + solved, total + len(c.exercises), \
             drills_done + drilled, drills_total + drills
     header = [bold("  Neovim course") + dim(f"   {done}/{total} exercises · {drills_done:,}/{drills_total:,} drills"),
-              dim("  ★ at par  ✓ solved  ✗ tried  ○ not yet  ⚑ all of it at par"), ""]
+              dim("  ★ at par  ✓ solved  ✗ tried  ○ not yet  A-F boss grade  ⚑ all of it at par"), ""]
 
     def footer(c):
         ex = c._first_open(c.exercises)
@@ -140,50 +139,64 @@ def world_rows(course):
     return rows
 
 
+def list_project(course, spot):
+    """The project as a list, for small terminals: (key, value of the row picked)."""
+    rows = world_rows(course)
+    at = next((i for i, (_, v) in enumerate(rows) if v is spot), 1)
+    progress = course._progress()
+    solved, at_par, drilled = counts(course, progress)
+    drills = len(course.drills())
+    header = [bold(f"  {course.project_dir.name[:2]} · {course.title.split(' · ', 1)[-1]}"),
+              dim(f"  {solved}/{len(course.exercises)} exercises solved · {at_par} at par"
+                  + (f" · {drilled}/{drills} drills" if drills else "")), ""]
+
+    def footer(value):
+        if value == "practice":
+            about = "Drills picked at random, as many as you like. The ones you've missed or solved over " \
+                    "par come up more often, and so do ones you haven't played for a while."
+        elif isinstance(value, trainer.Command):
+            ex = course._first_open(value.drills)
+            about = f"{value.keys}: {value.name}. Enter plays drill {ex.number}, " \
+                    f"the first one you haven't solved (or got to par)."
+        else:
+            about = value.task
+        return ["", *lines_of(about, 2), "",
+                dim("  j k move   Enter play   r lesson   p practice   t stats   h back to the map")]
+    key, value, _ = choose(header, rows, at, footer)
+    return key, value
+
+
+def ask(full, small):
+    """An action and what it's for, from the full-screen map if it fits, else from the list."""
+    while True:
+        got = full()
+        key, value = got if got else small()
+        action = (MAP_KEYS if got else LIST_KEYS).get(key)
+        if action:
+            return action, value
+
+
 def world_screen(course, spots):
     """Play the exercises and drills of one project. Returns the project to show on the map: where the
-    last game ended, since → in the game menu walks on into the next project. spots holds the row each
-    project's cursor was on (an exercise, a drill's command, or "practice")."""
-    at = None
+    last game ended, since → in the game menu walks on into the next project. spots holds where you were
+    standing in each project (an exercise, a drill's command, or "practice")."""
     while True:
-        rows = world_rows(course)
-        if at is None:
-            spot = spots.get(course, course._first_open(course.exercises))
-            spot = spot.command or spot if isinstance(spot, trainer.Exercise) else spot
-            at = next((i for i, (_, v) in enumerate(rows) if v is spot), 1)
-        progress = course._progress()
-        solved, at_par, drilled = counts(course, progress)
-        drills = len(course.drills())
-        header = [bold(f"  {course.project_dir.name[:2]} · {course.title.split(' · ', 1)[-1]}"),
-                  dim(f"  {solved}/{len(course.exercises)} exercises solved · {at_par} at par"
-                      + (f" · {drilled}/{drills} drills" if drills else "")), ""]
-
-        def footer(value):
-            if value == "practice":
-                about = "Drills picked at random, as many as you like. The ones you've missed or solved over " \
-                        "par come up more often, and so do ones you haven't played for a while."
-            elif isinstance(value, trainer.Command):
-                ex = course._first_open(value.drills)
-                about = f"{value.keys}: {value.name}. Enter plays drill {ex.number}, " \
-                        f"the first one you haven't solved (or got to par)."
-            else:
-                about = value.task
-            return ["", *lines_of(about, 2), "",
-                    dim("  j k move   Enter play   r lesson   p practice   t stats   h back to the map")]
-        key, value, at = choose(header, rows, at, footer)
+        spot = spots.get(course) or course._first_open(course.exercises)
+        spot = spot.command or spot if isinstance(spot, trainer.Exercise) else spot
+        action, value = ask(lambda: mapview.project_map(course, spot), lambda: list_project(course, spot))
         spots[course] = value
-        if key in BACK:
+        if action == "back":
             return course
-        if key == "t":
+        if action == "stats":
             stats()
-        elif key == "r":
+        elif action == "lesson":
             lesson(course)
-        elif key == "p" or key in OPEN and value == "practice":
+        elif action == "practice" or action == "open" and value == "practice":
             game(course.practice)
-        elif key in OPEN:
+        elif action == "open":
             ended = game(course.play, value if isinstance(value, trainer.Exercise) else course._first_open(value.drills))
             if ended:
-                course, spots[ended[0]], at = ended[0], ended[1], None  # maybe another project: → walks on
+                course, spots[ended[0]] = ended  # maybe another project: → in the game walks on into it
 
 
 def game(run, *args):
@@ -238,16 +251,17 @@ def main():
     screen_on()
     try:
         while True:
-            key, course, _ = map_screen(worlds, worlds.index(course))
-            if key in ("q", "esc"):
+            at = worlds.index(course)
+            action, course = ask(lambda: mapview.course_map(worlds, at), lambda: map_screen(worlds, at)[:2])
+            if action == "back":
                 break
-            if key == "t":
+            if action == "stats":
                 stats()
-            elif key == "p":
+            elif action == "practice":
                 game(course.practice)
-            elif key == "r":
+            elif action == "lesson":
                 lesson(course)
-            elif key in OPEN:
+            elif action == "open":
                 course = world_screen(course, spots)
     except (KeyboardInterrupt, EOFError):
         pass

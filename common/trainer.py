@@ -228,6 +228,7 @@ class Exercise:
                  hint=None, setup=(), exact=False, files=None, open=None, uses=(), steps=()):
         self.name, self.title, self.task, self.par = name, title, task, par
         self.steps = list(steps)  # for long exercises: the edits, one per item (printed, and in F1)
+        self.boss = bool(self.steps)  # a long exercise: graded A to F as well as par (see grade())
         self.cursor, self.hint, self.setup, self.exact = tuple(cursor), hint, list(setup), exact
         self.uses = list(uses)  # ids of the commands it practices, explained before it starts
         if files is None:
@@ -238,6 +239,22 @@ class Exercise:
         self.command = None  # for a drill: the Command it belongs to
         self.number = None  # exercise number, or the drill's number within its command
         self.workname = name
+
+
+# Long exercises (the ones with a list of edits) are bosses: par is hard to reach on them, so a solve also
+# gets a grade by how far over par it is: up to 10% over is an A, 25% a B, 50% a C, double par a D, more an F.
+GRADES = ((1.10, "A"), (1.25, "B"), (1.50, "C"), (2.00, "D"))
+GRADE_STYLE = {"A": "1;33", "B": "1;32", "C": "1;36", "D": "1;38;5;208", "F": "1;31"}
+
+
+def grade(count, par):
+    return next((g for limit, g in GRADES if count <= par * limit), "F")
+
+
+def graded(count, par):
+    """The grade, in its color."""
+    g = grade(count, par)
+    return _style(GRADE_STYLE[g], g)
 
 
 def _norm(lines, exact):
@@ -669,7 +686,7 @@ class Course:
                 detail = f"best {best} · par {e.par}" if best is not None else f"par {e.par}"
                 print(f"  {here}{self._mark(e, progress)} {e.number:>2}. {e.title.ljust(width)}   {dim(detail)}")
             question = f"  Which one? (1-{len(self.exercises)}, Enter to stay) "
-        print(dim("  ★ at par  ✓ solved  ✗ tried  ○ not yet"))
+        print(dim("  ★ at par  ✓ solved  ✗ tried  ○ not yet" + ("" if ex.command else "  A-F boss grade")))
         try:
             answer = input(question).strip()
         except (KeyboardInterrupt, EOFError):
@@ -911,6 +928,8 @@ class Course:
     def _mark(self, ex, progress):
         p = self._entry(ex, progress)
         if p.get("solved"):
+            if ex.boss:
+                return graded(p["best"], ex.par)
             return yellow("★") if p.get("best") is not None and p["best"] <= ex.par else green("✓")
         return red("✗") if p.get("attempts") else dim("○")
 
@@ -953,6 +972,8 @@ class Course:
                 best = p.get("best")
                 at_par += best is not None and best <= ex.par
                 detail = f"best {best} keys · par {ex.par}" + (yellow("  under par!") if best < ex.par else "")
+                if ex.boss:
+                    detail += " · grade " + graded(best, ex.par)
             elif p.get("attempts"):
                 detail = f"not solved yet · par {ex.par}"
             else:
@@ -1143,6 +1164,11 @@ class Course:
                 print(green(bold(f"  ✓ Solved in {count} keys.")) + f" Par is {ex.par}. Can you find the shorter way?")
             if new_best and entry["attempts"] > 1:
                 print(green("    New personal best."))
+            if ex.boss:
+                best = "" if new_best else f" Your best is {entry['best']} keys, a {grade(entry['best'], ex.par)}."
+                print(f"  Boss grade: {graded(count, ex.par)}" + dim(
+                    f"   {count} keys is {round(100 * count / ex.par)}% of par.{best} A is up to 10% over par, "
+                    "B 25%, C 50%, D double par, F more."))
         else:
             print(red(bold("  ✗ Not quite.")))
             for line in problems:
@@ -1325,7 +1351,7 @@ class Course:
         count = result["count"]
         verdict = (yellow(f"★ {count} keys, par {ex.par}") if solved and count <= ex.par
                    else green(f"✓ {count} keys, par {ex.par}") if solved else red(f"✗ not solved ({count} keys)"))
-        print("  " + verdict)
+        print("  " + verdict + (" · grade " + graded(count, ex.par) if solved and ex.boss else ""))
         for line in problems:
             print("    " + line)
         _print_keys("keys typed:    ", pretty("".join(result["keys"])))
