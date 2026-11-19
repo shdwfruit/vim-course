@@ -1,0 +1,7 @@
+# Your own state stays out of git, so no git command (checkout, reset, stash) can ever undo your progress.
+.progress.json
+.history.jsonl
+.work/
+
+__pycache__/
+.DS_Store
