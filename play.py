@@ -180,9 +180,13 @@ def world_screen(course, spots):
     """Play the exercises and drills of one project. Returns the project to show on the map: where the
     last game ended, since → in the game menu walks on into the next project. spots holds where you were
     standing in each project (an exercise, a drill's command, or "practice")."""
+    arriving = True
     while True:
         spot = spots.get(course) or course._first_open(course.exercises)
         spot = spot.command or spot if isinstance(spot, trainer.Exercise) else spot
+        if arriving and not isinstance(spot, trainer.Exercise):
+            spot = "camp"  # coming ashore you stand at the camp: its list reopens only when you're back from a drill
+        arriving = False
         action, value = ask(lambda: mapview.project_map(course, spot), lambda: list_project(course, spot))
         spots[course] = value
         if action == "back":
@@ -193,7 +197,7 @@ def world_screen(course, spots):
             lesson(course)
         elif action == "practice" or action == "open" and value == "practice":
             game(course.practice)
-        elif action == "open":
+        elif action == "open" and value != "camp":
             ended = game(course.play, value if isinstance(value, trainer.Exercise) else course._first_open(value.drills))
             if ended:
                 course, spots[ended[0]] = ended  # maybe another project: → in the game walks on into it

@@ -21,12 +21,15 @@ cd vim-course
 python3 play.py               # the whole course from one screen: pick a project, then an exercise or drill
 ```
 
-It fills the terminal with a map: the projects are islands in a line, and you're the yellow `@`. Sail
+It fills the terminal with a pixel-art map: the projects are islands in a line, each its own country
+with a landmark (an old oak, a pyramid, a volcano, a giant skull...), and you're the yellow `@`. An island
+you haven't started lies in grey fog, and inside one the land colors in as you reach each level. Sail
 from one to the next with `h`/`l` (or ← →; `g`/`G` for the first and last) and the map scrolls with you;
-`Enter` goes ashore. Inside, you pick a level: its cards run along the top with the one you're on in
-the middle (`h`/`l` to choose), the island below shows the dotted route through them, and the panel on
-the right has the details and the PLAY button (`Enter`). The drills are along the bottom: `j` goes down
-to them and `k` comes back. Marks: gold ★ at par, green ✓ solved, red ✗ tried, grey not yet. The long exercises, the ones with a
+`Enter` goes ashore. Inside, a road winds through the levels to the training camp at its end, and you
+follow it: `l` only when the road runs right, `j` when it turns down, `h` on the stretches that run
+back left. The level you're on shows its name and task in a box. `Enter` opens its briefing over the
+map (the task and the commands it needs), `Enter` again starts Neovim, and the result comes back as a
+box on the map too. At the camp, `Enter` lists the island's drills and practice. Marks: gold ★ at par, green ✓ solved, red ✗ tried, grey not yet. The long exercises, the ones with a
 list of 8 to 17 edits (each project's two reviews, and all of Project 10), are boss levels: a solve
 also gets a grade for how close it came to par, A up to 10% over, B 25%, C 50%, D double par, and F
 beyond. `check.py` shows the grades too, after each try and in its lists. `Enter`

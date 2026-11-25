@@ -497,6 +497,7 @@ class _Practice:
 
 
 _PRACTICE = None  # the _Practice in progress, when check.py practice is running
+AFTER_PLAY = None  # set by the map: called as soon as Neovim closes after a try, before grading
 LAUNCHED = False  # set by play.py: q in the menu goes back to its lists, so there's no cd command to print
 
 
@@ -1138,6 +1139,8 @@ class Course:
         and F9; None if Neovim failed."""
         began = time.time()
         result, error = self._nvim(ex, "play")
+        if AFTER_PLAY:
+            AFTER_PLAY()
         if error:
             print(red("  " + error))
             return None
